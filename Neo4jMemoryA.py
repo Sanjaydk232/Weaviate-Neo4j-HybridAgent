@@ -40,23 +40,18 @@ textTwocypherExamples = [
     "USER INPUT: 'top 5 most reviewed products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
     "USER INPUT: 'show me reviews for mobile electronics with 5 stars' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'electronics' AND r.star_rating = 5 RETURN r.review_body LIMIT 10",
     "USER INPUT: 'which customer has written the most reviews for appliances?' QUERY: MATCH (c:Customer)-[:WROTE]->(r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'appliances' RETURN c.customer_id, count(r) AS total ORDER BY total DESC LIMIT 1",
-
     "USER INPUT: 'Hey, my name is K, I want to know the top 5 most reviewed products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
     "USER INPUT: 'Hi! I am Sarah, can you show me the best rated kitchen products?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'kitchen' RETURN p.product_title, avg(r.star_rating) AS avg_rating, count(r) AS review_count ORDER BY avg_rating DESC LIMIT 10",
     "USER INPUT: 'My name is Alex and I only like 5 star products, show me top electronics' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'electronics' AND r.star_rating = 5 RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 10",
     "USER INPUT: 'Hey there, I prefer highly reviewed items, what are the top 5 most reviewed beauty products?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'beauty' RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
-
     "USER INPUT: 'show me only 5 star reviewed products with more than 10 reviews' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 WITH p, count(r) AS review_count WHERE review_count > 10 RETURN p.product_title, review_count ORDER BY review_count DESC LIMIT 10",
     "USER INPUT: 'what products have more than 5 reviews and a 5 star rating?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 WITH p, count(r) AS review_count WHERE review_count > 5 RETURN p.product_title, review_count ORDER BY review_count DESC LIMIT 10",
     "USER INPUT: 'lowest rated products in home and garden' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'home' OR toLower(p.product_category) CONTAINS 'garden' RETURN p.product_title, avg(r.star_rating) AS avg_rating ORDER BY avg_rating ASC LIMIT 5",
-
     "USER INPUT: 'what categories are available?' QUERY: MATCH (p:Product) RETURN DISTINCT p.product_category ORDER BY p.product_category",
     "USER INPUT: 'how many products are in each category?' QUERY: MATCH (p:Product) RETURN p.product_category, count(p) AS product_count ORDER BY product_count DESC",
     "USER INPUT: 'which category has the most 5 star reviews?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 RETURN p.product_category, count(r) AS five_star_count ORDER BY five_star_count DESC LIMIT 5",
-
     "USER INPUT: 'how many reviews has customer 12345 written?' QUERY: MATCH (c:Customer {customer_id: '12345'})-[:WROTE]->(r:Review) RETURN count(r) AS total_reviews",
     "USER INPUT: 'show me the most active reviewers overall' QUERY: MATCH (c:Customer)-[:WROTE]->(r:Review) RETURN c.customer_id, count(r) AS total ORDER BY total DESC LIMIT 10",
-
     "USER INPUT: 'show me recent review text for top gift card products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'sports' RETURN p.product_title, r.review_body, r.star_rating LIMIT 10",
     "USER INPUT: 'find reviews that mention battery life' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(r.review_body) CONTAINS 'battery' RETURN p.product_title, r.review_body, r.star_rating LIMIT 10",
 ]
@@ -173,14 +168,12 @@ mcp = FastMCP("HybridMemoryAgent")
 
 @mcp.tool()
 async def search(question: str) -> str:
-    """Routes to Neo4j (structured) or Weaviate (semantic), with full memory."""
     return await HybridSearch(question)
 
 
 if __name__ == "__main__":
     if "-terminal" in sys.argv:
         async def chatInterface():
-            print("Hybrid Memory Agent running. Type 'stop' to exit.\n")
             while True:
                 try:
                     userQuestion = input("You: ").strip()

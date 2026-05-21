@@ -14,10 +14,8 @@ from neo4j_graphrag.llm import OllamaLLM
 
 from mcp.server.fastmcp import FastMCP
 
-# ── ADDED: memory imports (from documentation) ────────────────────────────────
 from neo4j_agent_memory import MemoryClient, MemorySettings
 from neo4j_agent_memory.extraction import GLiNEREntityExtractor
-# ─────────────────────────────────────────────────────────────────────────────
 
 load_dotenv()
 
@@ -97,7 +95,6 @@ def semanticsearch(question: str) -> str:
 if __name__ == "__main__":
     if "-terminal" in sys.argv:
         async def chatInterface():
-            # ── ADDED: initialize memory (doc: initialize()) ──────────────────
             settings = MemorySettings(
                 neo4j={"uri": neo4jURI, "username": neo4jUser, "password": neo4jPass}, embedding={"provider": "sentence_transformers", "model": "all-MiniLM-L6-v2"}
             )
@@ -105,7 +102,6 @@ if __name__ == "__main__":
             await memory.connect()
             extractor = GLiNEREntityExtractor.for_poleo()
 
-            # ── ADDED: greet + get/create user (doc: get_or_create_user()) ────
             name = input("What's your name? ").strip() or "Guest"
 
             users = await memory.long_term.search_entities(query=name, entity_types=["CUSTOMER"], limit=1)
@@ -119,7 +115,6 @@ if __name__ == "__main__":
 
             session_id = f"chat-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
             print(f"\n💬 Chat started (Session: {session_id})")
-            # ─────────────────────────────────────────────────────────────────
 
             while True:
                 try:
@@ -129,7 +124,6 @@ if __name__ == "__main__":
                     if not userQuestion:
                         continue
 
-                    # ── ADDED: memory command (doc: show_memory_stats()) ──────
                     if userQuestion.lower() == "memory":
                         print("\n" + "="*50)
                         print("What I Remember About You")
@@ -147,9 +141,6 @@ if __name__ == "__main__":
                                     print(f"  • {e.name}")
                         print("="*50 + "\n")
                         continue
-                    # ─────────────────────────────────────────────────────────
-
-                    # ── ADDED: store message + extract entities + preferences ──
                     await memory.short_term.add_message(
                         session_id=session_id, role="user", content=userQuestion
                     )
@@ -168,9 +159,7 @@ if __name__ == "__main__":
                         pref = f"Budget around ${budget_match.group(1)}"
                         await memory.long_term.add_preference(preference=pref, category="budget", confidence=0.9)
                         print(f"  📝 Learned: {pref}")
-                    # ─────────────────────────────────────────────────────────
-
-                    # ── ADDED: resolve references using short-term memory ─────
+                  
                     referenceWords = ["first", "second", "third", "that", "you mentioned", "previous", "last"]
                     resolvedQuestion = userQuestion
                     if any(w in userQuestion.lower() for w in referenceWords):
@@ -195,16 +184,14 @@ if __name__ == "__main__":
                                 resolvedQuestion = resolvedQuestion.replace(ref, f'"{target}"')
                             if resolvedQuestion == userQuestion:
                                 resolvedQuestion = f"{userQuestion} for {target}"
-                    # ─────────────────────────────────────────────────────────
-
+                    
                     response = await HybridAgent(resolvedQuestion)
                     print(f"Response: \n{response}\n")
 
-                    # ── ADDED: store assistant response ───────────────────────
+                    
                     await memory.short_term.add_message(
                         session_id=session_id, role="assistant", content=str(response)
                     )
-                    # ─────────────────────────────────────────────────────────
 
                 except KeyboardInterrupt:
                     break
