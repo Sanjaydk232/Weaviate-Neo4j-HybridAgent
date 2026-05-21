@@ -14,39 +14,73 @@ import urllib.request
 import json
 
 from mcp.server.fastmcp import FastMCP
-
-# --- NEW: agent memory imports ---
 from neo4j_agent_memory import MemoryClient, MemorySettings
 
 load_dotenv()
 
 ollamaEndpoint = "http://localhost:11434/api/generate"
 
-neo4jURI      = os.getenv("NEO4J_URI",      "bolt://localhost:7687")
-neo4jUser     = os.getenv("NEO4J_USER",     "neo4j")
-neo4jPass     = os.getenv("NEO4J_PASS",     "dd11223344@")
+neo4jURI     = os.getenv("NEO4J_URI",      "bolt://localhost:7687")
+neo4jUser    = os.getenv("NEO4J_USER",     "neo4j")
+neo4jPass    = os.getenv("NEO4J_PASS",     "dd11223344@")
 
-weaviateHost  = os.getenv("WEAVIATE_HOST",  "localhost")
-weaviatePort  = int(os.getenv("WEAVIATE_PORT", "8080"))
+weaviateHost = os.getenv("WEAVIATE_HOST",  "localhost")
+weaviatePort = int(os.getenv("WEAVIATE_PORT", "8080"))
 
-ollamaModel   = os.getenv("OLLAMA_MODEL",   "llama3.2")
-ollamaTemp    = float(os.getenv("OLLAMA_TEMPERATURE", "0"))
+ollamaModel  = os.getenv("OLLAMA_MODEL",   "llama3.2")
+ollamaTemp   = float(os.getenv("OLLAMA_TEMPERATURE", "0"))
 
 neo4jDB = GraphDatabase.driver(neo4jURI, auth=(neo4jUser, neo4jPass))
 
-textTwocypherLLM = OllamaLLM(model_name=ollamaModel, model_params={"options": {"temperature": ollamaTemp}})
+textTwocypherLLM    = OllamaLLM(model_name=ollamaModel, model_params={"options": {"temperature": ollamaTemp}})
 textTwocypherSchema = get_schema(neo4jDB, is_enhanced=True)
 
 textTwocypherExamples = [
     "USER INPUT: 'what is the average rating for Beauty products?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'beauty' RETURN avg(r.star_rating) AS average_score",
     "USER INPUT: 'top 5 most reviewed products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
     "USER INPUT: 'show me reviews for mobile electronics with 5 stars' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'electronics' AND r.star_rating = 5 RETURN r.review_body LIMIT 10",
-    "USER INPUT: 'which customer has written the most reviews for appliances?' QUERY: MATCH (c:Customer)-[:WROTE]->(r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'appliances' RETURN c.customer_id, count(r) AS total ORDER BY total DESC LIMIT 1"
+    "USER INPUT: 'which customer has written the most reviews for appliances?' QUERY: MATCH (c:Customer)-[:WROTE]->(r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'appliances' RETURN c.customer_id, count(r) AS total ORDER BY total DESC LIMIT 1",
+
+    "USER INPUT: 'Hey, my name is K, I want to know the top 5 most reviewed products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
+    "USER INPUT: 'Hi! I am Sarah, can you show me the best rated kitchen products?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'kitchen' RETURN p.product_title, avg(r.star_rating) AS avg_rating, count(r) AS review_count ORDER BY avg_rating DESC LIMIT 10",
+    "USER INPUT: 'My name is Alex and I only like 5 star products, show me top electronics' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'electronics' AND r.star_rating = 5 RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 10",
+    "USER INPUT: 'Hey there, I prefer highly reviewed items, what are the top 5 most reviewed beauty products?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'beauty' RETURN p.product_title, count(r) AS review_count ORDER BY review_count DESC LIMIT 5",
+
+    "USER INPUT: 'show me only 5 star reviewed products with more than 10 reviews' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 WITH p, count(r) AS review_count WHERE review_count > 10 RETURN p.product_title, review_count ORDER BY review_count DESC LIMIT 10",
+    "USER INPUT: 'what products have more than 5 reviews and a 5 star rating?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 WITH p, count(r) AS review_count WHERE review_count > 5 RETURN p.product_title, review_count ORDER BY review_count DESC LIMIT 10",
+    "USER INPUT: 'lowest rated products in home and garden' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'home' OR toLower(p.product_category) CONTAINS 'garden' RETURN p.product_title, avg(r.star_rating) AS avg_rating ORDER BY avg_rating ASC LIMIT 5",
+
+    "USER INPUT: 'what categories are available?' QUERY: MATCH (p:Product) RETURN DISTINCT p.product_category ORDER BY p.product_category",
+    "USER INPUT: 'how many products are in each category?' QUERY: MATCH (p:Product) RETURN p.product_category, count(p) AS product_count ORDER BY product_count DESC",
+    "USER INPUT: 'which category has the most 5 star reviews?' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE r.star_rating = 5 RETURN p.product_category, count(r) AS five_star_count ORDER BY five_star_count DESC LIMIT 5",
+
+    "USER INPUT: 'how many reviews has customer 12345 written?' QUERY: MATCH (c:Customer {customer_id: '12345'})-[:WROTE]->(r:Review) RETURN count(r) AS total_reviews",
+    "USER INPUT: 'show me the most active reviewers overall' QUERY: MATCH (c:Customer)-[:WROTE]->(r:Review) RETURN c.customer_id, count(r) AS total ORDER BY total DESC LIMIT 10",
+
+    "USER INPUT: 'show me recent review text for top gift card products' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(p.product_category) CONTAINS 'sports' RETURN p.product_title, r.review_body, r.star_rating LIMIT 10",
+    "USER INPUT: 'find reviews that mention battery life' QUERY: MATCH (r:Review)-[:REVIEWS]->(p:Product) WHERE toLower(r.review_body) CONTAINS 'battery' RETURN p.product_title, r.review_body, r.star_rating LIMIT 10",
 ]
 
 textTwocypherRetriver = Text2CypherRetriever(
-    driver = neo4jDB, llm = textTwocypherLLM, neo4j_schema = textTwocypherSchema, examples = textTwocypherExamples
+    driver=neo4jDB, llm=textTwocypherLLM, neo4j_schema=textTwocypherSchema, examples=textTwocypherExamples
 )
+
+def semanticWeaviate(userQ):
+    try:
+        with weaviate.connect_to_local(
+            host=weaviateHost, port=weaviatePort,
+            additional_config=AdditionalConfig(timeout=Timeout(init=30, query=300, insert=120))
+        ) as client:
+            reviews = client.collections.get("AmazonReview")
+            weaviateResult = reviews.generate.near_text(query=userQ, limit=3, grouped_task=userQ)
+            return weaviateResult.generative.text
+    except Exception as e:
+        return f"Weaviate Failed: {e}"
+
+classifyModelUse = [
+    "top", "latest", "count", "avg", "average", "sum",
+    "rating", "category", "how many", "total", "customers", "products"
+]
 
 memorySettings = MemorySettings(
     neo4j={
@@ -54,46 +88,53 @@ memorySettings = MemorySettings(
         "username": neo4jUser,
         "password": neo4jPass,
     },
-    embedding={"provider": "sentence_transformers", "model": "BAAI/bge-small-en-v1.5"},  
+    embedding={"provider": "sentence_transformers", "model": "BAAI/bge-small-en-v1.5"},
 )
 
-MEMORY_SESSION_ID = os.getenv("MEMORY_SESSION_ID", "neo4j-agent-default")
+MEMORY_SESSION_ID = os.getenv("MEMORY_SESSION_ID", "hybrid-agent-default")
 
 
-async def NeoSearch(userQ, session_id=MEMORY_SESSION_ID):
+async def HybridSearch(userQ, session_id=MEMORY_SESSION_ID):
+
     async with MemoryClient(memorySettings) as memory:
 
         await memory.short_term.add_message(
-            session_id = session_id,
-            role       = "user",
-            content    = userQ,
+            session_id=session_id,
+            role="user",
+            content=userQ,
         )
 
         memContext = await memory.get_context(
-            query      = userQ,
-            session_id = session_id,
+            query=userQ,
+            session_id=session_id,
         )
 
-        t2cRes = ""
-        try:
-            result = textTwocypherRetriver.search(query_text=userQ)
-            if result and result.items:
-                t2cRes = "\n".join(item.content for item in result.items).strip()
-        except Exception:
-            t2cRes = ""
+        usingNeo4j = any(word in userQ.lower() for word in classifyModelUse)
 
-        if t2cRes:
+        t2cR = ""
+        if usingNeo4j:
+            try:
+                result = textTwocypherRetriver.search(query_text=userQ)
+                if result and result.items:
+                    t2cR = "\n".join(item.content for item in result.items).strip()
+            except Exception:
+                t2cR = ""
+        else:
+            t2cR = semanticWeaviate(userQ)
+
+        if t2cR:
+            dataB = "Graph Data (Neo4j)" if usingNeo4j else "Semantic Data (Weaviate)"
             Description = (
                 "You are an Amazon reviews assistant.\n"
-                "Provide a natural language answer to the user's question using the provided database records.\n"
+                "Provide a natural language answer to the user's question using the provided data.\n"
                 "Be concise, direct, and conversational.\n\n"
                 f"Memory Context:\n{memContext}\n\n"
-                f"Database Data:\n{t2cRes}\n\n"
+                f"{dataB}:\n{t2cR}\n\n"
                 f"User Question: {userQ}"
             )
         else:
             Description = (
-                "You are a friendly Amazon reviews assistant.\n"
+                "You are a natural language Amazon reviews assistant.\n"
                 "Provide a polite, conversational response to the user's message.\n\n"
                 f"Memory Context:\n{memContext}\n\n"
                 f"User Message: {userQ}"
@@ -112,35 +153,34 @@ async def NeoSearch(userQ, session_id=MEMORY_SESSION_ID):
         except Exception as e:
             response = f"Ollama Failed: {e}"
 
-        # 6. Store the assistant response
         await memory.short_term.add_message(
-            session_id = session_id,
-            role       = "assistant",
-            content    = response,
+            session_id=session_id,
+            role="assistant",
+            content=response,
         )
 
         await memory.long_term.add_entity(
             name        = userQ[:80],
             entity_type = "QUERY",
-            attributes  = {"session": session_id},
+            attributes  = {"session": session_id, "backend": "neo4j" if usingNeo4j else "weaviate"},
         )
 
         return response
 
 
-mcp = FastMCP("Neo4jAgent")
+mcp = FastMCP("HybridMemoryAgent")
 
 
 @mcp.tool()
 async def search(question: str) -> str:
-    """Processes your question naturally, retrieving graph data if relevant."""
-    return await NeoSearch(question)
+    """Routes to Neo4j (structured) or Weaviate (semantic), with full memory."""
+    return await HybridSearch(question)
 
 
 if __name__ == "__main__":
     if "-terminal" in sys.argv:
         async def chatInterface():
-            print("Agent running in terminal mode. Type 'stop' to exit.\n")
+            print("Hybrid Memory Agent running. Type 'stop' to exit.\n")
             while True:
                 try:
                     userQuestion = input("You: ").strip()
@@ -148,9 +188,8 @@ if __name__ == "__main__":
                         break
                     if not userQuestion:
                         continue
-
-                    response = await NeoSearch(userQuestion)
-                    print(f"Assistant: \n{response}\n")
+                    response = await HybridSearch(userQuestion)
+                    print(f"Assistant:\n{response}\n")
                 except KeyboardInterrupt:
                     break
         try:
@@ -158,5 +197,5 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             pass
     else:
-        print("Neo4j MCP server running:")
+        print("HybridMemoryAgent MCP server running:")
         mcp.run()
